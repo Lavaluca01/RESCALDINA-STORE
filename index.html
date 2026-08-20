@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta name="theme-color" content="#e30613"/>
+  <meta name="description" content="Gestione preferenze personale - PV Rescaldina"/>
+  <title>Gestione Preferenze Personale - Rescaldina</title>
+  <link rel="manifest" href="manifest.json"/>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <div class="logo-wrap"><img src="logo-mediaworld.jpg" alt="MediaWorld"></div>
+    <div>
+      <h1>Gestione Preferenze Personale</h1>
+      <p>PV Rescaldina</p>
+    </div>
+  </div>
+  <div id="sessionBox" class="session-box hidden">
+    <div><strong id="sessionName"></strong><span id="sessionRole"></span></div>
+    <button id="logoutBtn" class="mode-btn">Esci</button>
+  </div>
+</header>
+
+<main>
+  <section class="login-card" id="loginArea">
+    <span class="eyebrow">ACCESSO RISERVATO</span>
+    <h2>Accedi al portale</h2>
+    <p>Ogni dipendente accede esclusivamente alla propria area. L'area Manager è protetta da un PIN separato.</p>
+
+    <div class="login-tabs">
+      <button id="employeeTab" class="login-tab active" type="button">Dipendente</button>
+      <button id="managerTab" class="login-tab" type="button">Manager</button>
+    </div>
+
+    <div id="employeeLogin" class="login-panel">
+      <label>Dipendente<select id="loginEmployeeSelect"></select></label>
+      <label>PIN personale<input id="employeePin" type="password" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="Inserisci PIN"></label>
+      <button id="employeeLoginBtn" class="primary full">Accedi</button>
+      <p class="login-note">Al primo accesso il sistema può richiedere la modifica del PIN temporaneo.</p>
+    </div>
+
+    <div id="managerLogin" class="login-panel hidden">
+      <label>PIN Manager<input id="managerPin" type="password" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="Inserisci PIN Manager"></label>
+      <button id="managerLoginBtn" class="primary full">Accedi come Manager</button>
+    </div>
+  </section>
+
+  <section class="hero-card hidden" id="employeeArea">
+    <div class="section-title">
+      <div>
+        <span class="eyebrow">AREA DIPENDENTE</span>
+        <h2 id="employeeWelcome">Le mie preferenze</h2>
+        <p>Le richieste restano modificabili finché sono <strong>IN ATTESA</strong>.</p>
+      </div>
+      <button id="changePinBtn" class="secondary">Cambia PIN</button>
+    </div>
+
+    <div class="identity-card"><strong id="employeeIdentity"></strong><span id="employeeDepartment"></span></div>
+
+    <div class="grid two">
+      <label>Tipo richiesta<select id="requestType">
+        <option>Ferie</option><option>Recupero</option><option>Disponibilità festività</option><option>PIR</option><option>Permesso 104</option><option>Altro permesso</option>
+      </select></label>
+      <label>Anno<select id="yearSelect"></select></label>
+      <label>Dal<input id="dateFrom" type="date"></label>
+      <label>Al<input id="dateTo" type="date"></label>
+    </div>
+    <label>Nota facoltativa<textarea id="note" rows="3" placeholder="Inserisci eventuali indicazioni"></textarea></label>
+    <div class="form-actions">
+      <button class="primary" id="sendBtn">Invia richiesta</button>
+      <button class="secondary hidden" id="cancelEditBtn">Annulla modifica</button>
+    </div>
+    <div id="employeeHistory"></div>
+  </section>
+
+  <section class="hero-card hidden" id="managerArea">
+    <div class="manager-head">
+      <div><span class="eyebrow">AREA MANAGER</span><h2>Dashboard Manager</h2><p>Valuta, conferma, rifiuta o elimina le richieste errate.</p></div>
+      <div class="manager-buttons"><button id="managerPinBtn" class="secondary">Cambia PIN Manager</button><button id="addEmployeeBtn" class="primary">+ Nuovo dipendente</button></div>
+    </div>
+    <div class="filters">
+      <select id="filterDept"><option value="">Tutti i reparti</option></select>
+      <select id="filterStatus"><option value="">Tutti gli stati</option><option>IN ATTESA</option><option>APPROVATA</option><option>RIFIUTATA</option></select>
+      <select id="filterYear"></select>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="table-wrap"><table><thead><tr><th>Dipendente</th><th>Rep.</th><th>Tipo</th><th>Periodo</th><th>Stato</th><th>Azioni</th></tr></thead><tbody id="requestsTable"></tbody></table></div>
+    <h3>Organico per reparto</h3>
+    <div id="staffByDept" class="dept-grid"></div>
+  </section>
+</main>
+
+<dialog id="employeeDialog">
+  <form method="dialog" id="employeeForm">
+    <h3>Nuovo dipendente</h3>
+    <label>Nome e cognome<input id="newName" required></label>
+    <label>Reparto<select id="newDept"><option>CS</option><option>PC</option><option>GE</option><option>TLC</option><option>MAG</option><option>TV</option></select></label>
+    <label>PIN temporaneo<input id="newPin" required type="password" inputmode="numeric" minlength="4" maxlength="6" placeholder="4-6 cifre"></label>
+    <div class="dialog-actions"><button value="cancel" class="secondary">Annulla</button><button class="primary" id="saveEmployee" value="default">Salva</button></div>
+  </form>
+</dialog>
+
+<footer>MediaWorld · Gestione Preferenze Personale · PV Rescaldina</footer>
+<script src="app.js"></script>
+</body>
+</html>

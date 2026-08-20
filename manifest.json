@@ -1,0 +1,8 @@
+{
+  "name":"Gestione Preferenze Personale - Rescaldina",
+  "short_name":"Preferenze PV",
+  "start_url":"./",
+  "display":"standalone",
+  "background_color":"#e30613",
+  "theme_color":"#e30613"
+}
