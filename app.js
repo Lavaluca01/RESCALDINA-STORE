@@ -1,119 +1,440 @@
+const firebaseConfig = {
+  apiKey: "AIzaSyCZ3vlyu3S0uU4Ts1k1Cyyy4G4xkk0AF24",
+  authDomain: "gestione-personale-rescaldina.firebaseapp.com",
+  projectId: "gestione-personale-rescaldina",
+  storageBucket: "gestione-personale-rescaldina.firebasestorage.app",
+  messagingSenderId: "144918771825",
+  appId: "1:144918771825:web:31145a82da3ea2144743d0"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+const functions = firebase.app().functions("europe-west8");
+
+const MANAGER_EMAIL = "manager.rescaldina@gestione.local";
+const DEPARTMENTS = ["CS", "PC", "GE", "TLC", "MAG", "TV"];
 const DEFAULT_EMPLOYEES = [
-['BAGNO C.','CS'],['BARLOCCO F.','PC'],['BELLUSCIO M.','GE'],['BENLODI L.','CS'],['BOLDRINI E.','GE'],['BRANCATO R.','CS'],['CANDEO T.','CS'],['CIARAVOLO A.','GE'],['CIFARELLI G.','TLC'],['COZZI M.','PC'],['CREPALDI M.','GE'],['DALL ACQUA M.','GE'],['FORTUNA A.','TLC'],['GAZZO C.','CS'],['GHIDOTTI D.','MAG'],['MAGRO G.P.','TLC'],['MANISCALCO D.','PC'],['MARTELLOTTA F.','GE'],['ARESI C.','CS'],['MATANAY K.','GE'],['RANCILIO S.','TLC'],['TALLARICO L.','TLC'],['MARCONI M.','TV'],['ROMANO L.','TLC'],['SAPONARA M.','CS'],['SILVESTRI E.','GE'],['STEFAN M.','CS'],['STEFANETTI S.','TV'],['TARANTELLA A.','MAG'],['VARALLI F.','TLC'],['VINCI A.','MAG'],['ADARDI K.','TLC'],['MERLO A.','GE']
-].map(([name,department],i)=>({id:'EMP'+String(i+1).padStart(3,'0'),name,department,active:true,pin:'0000',mustChangePin:true}));
+  ["BAGNO C.","CS"],["BARLOCCO F.","PC"],["BELLUSCIO M.","GE"],["BENLODI L.","CS"],
+  ["BOLDRINI E.","GE"],["BRANCATO R.","CS"],["CANDEO T.","CS"],["CIARAVOLO A.","GE"],
+  ["CIFARELLI G.","TLC"],["COZZI M.","PC"],["CREPALDI M.","GE"],["DALL ACQUA M.","GE"],
+  ["FORTUNA A.","TLC"],["GAZZO C.","CS"],["GHIDOTTI D.","MAG"],["MAGRO G.P.","TLC"],
+  ["MANISCALCO D.","PC"],["MARTELLOTTA F.","GE"],["ARESI C.","CS"],["MATANAY K.","GE"],
+  ["RANCILIO S.","TLC"],["TALLARICO L.","TLC"],["MARCONI M.","TV"],["ROMANO L.","TLC"],
+  ["SAPONARA M.","CS"],["SILVESTRI E.","GE"],["STEFAN M.","CS"],["STEFANETTI S.","TV"],
+  ["TARANTELLA A.","MAG"],["VARALLI F.","TLC"],["VINCI A.","MAG"],["ADARDI K.","TLC"],
+  ["MERLO A.","GE"]
+];
 
-const DEFAULT_MANAGER_PIN='2468';
-let employees = JSON.parse(localStorage.getItem('employees')||'null') || DEFAULT_EMPLOYEES;
-// Migrazione dalla v2: aggiunge PIN ai dipendenti già presenti.
-employees = employees.map(e=>({...e,pin:e.pin||'0000',mustChangePin:typeof e.mustChangePin==='boolean'?e.mustChangePin:true}));
-let requests = JSON.parse(localStorage.getItem('requests')||'[]');
-let managerPin = localStorage.getItem('managerPin') || DEFAULT_MANAGER_PIN;
-let currentSession=null;
-let editingRequestId=null;
-const $=id=>document.getElementById(id);
-const years=Array.from({length:25},(_,i)=>new Date().getFullYear()+i);
+const $ = id => document.getElementById(id);
+const years = Array.from({length: 25}, (_, i) => new Date().getFullYear() + i);
+let directory = [];
+let staff = [];
+let requests = [];
+let currentProfile = null;
+let editingRequestId = null;
+let requestsUnsub = null;
 
-function save(){localStorage.setItem('employees',JSON.stringify(employees));localStorage.setItem('requests',JSON.stringify(requests));localStorage.setItem('managerPin',managerPin);}
-function fillYears(){['yearSelect','filterYear'].forEach(id=>{$(id).innerHTML=years.map(y=>`<option>${y}</option>`).join('')});}
-function fillLoginEmployees(){const cur=$('loginEmployeeSelect').value;$('loginEmployeeSelect').innerHTML=employees.filter(e=>e.active).sort((a,b)=>a.name.localeCompare(b.name)).map(e=>`<option value="${e.id}">${e.name} · ${e.department}</option>`).join('');if(cur&&employees.some(e=>e.id===cur&&e.active))$('loginEmployeeSelect').value=cur;}
-function fillDeptFilters(){const depts=[...new Set(employees.map(e=>e.department))].sort(); const cur=$('filterDept').value; $('filterDept').innerHTML='<option value="">Tutti i reparti</option>'+depts.map(d=>`<option>${d}</option>`).join(''); $('filterDept').value=cur;}
-function fmt(d){if(!d)return''; return new Date(d+'T12:00:00').toLocaleDateString('it-IT');}
-function statusClass(status){return status==='APPROVATA'?'approved':status==='RIFIUTATA'?'rejected':'pending';}
-function escapeHtml(str){return String(str??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
-function validPin(pin){return /^\d{4,6}$/.test(pin);}
-function sessionEmployee(){return currentSession?.role==='employee'?employees.find(e=>e.id===currentSession.employeeId):null;}
-
-function showLogin(tab='employee'){
- currentSession=null;editingRequestId=null;
- $('loginArea').classList.remove('hidden');$('employeeArea').classList.add('hidden');$('managerArea').classList.add('hidden');$('sessionBox').classList.add('hidden');
- $('employeePin').value='';$('managerPin').value='';switchLoginTab(tab);
+function esc(v) {
+  return String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 }
-function setSessionUI(){
- $('loginArea').classList.add('hidden');$('sessionBox').classList.remove('hidden');
- if(currentSession.role==='employee'){
-   const emp=sessionEmployee();$('sessionName').textContent=emp.name;$('sessionRole').textContent=`Dipendente · ${emp.department}`;
-   $('employeeArea').classList.remove('hidden');$('managerArea').classList.add('hidden');
-   $('employeeWelcome').textContent=`Ciao ${emp.name}`;$('employeeIdentity').textContent=emp.name;$('employeeDepartment').textContent=`Reparto ${emp.department}`;renderEmployeeHistory();
- }else{
-   $('sessionName').textContent='Manager';$('sessionRole').textContent='Amministratore';$('employeeArea').classList.add('hidden');$('managerArea').classList.remove('hidden');renderManager();renderStaff();
- }
+function fmt(d) {
+  if (!d) return "";
+  return new Date(`${d}T12:00:00`).toLocaleDateString("it-IT");
 }
-function switchLoginTab(tab){
- const employee=tab==='employee';$('employeeTab').classList.toggle('active',employee);$('managerTab').classList.toggle('active',!employee);$('employeeLogin').classList.toggle('hidden',!employee);$('managerLogin').classList.toggle('hidden',employee);
+function statusLabel(s) {
+  return s === "approved" ? "APPROVATA" : s === "rejected" ? "RIFIUTATA" : "IN ATTESA";
 }
-function employeeLogin(){
- const emp=employees.find(e=>e.id===$('loginEmployeeSelect').value&&e.active);const pin=$('employeePin').value.trim();
- if(!emp||pin!==String(emp.pin)){alert('PIN non corretto.');$('employeePin').value='';return;}
- currentSession={role:'employee',employeeId:emp.id};setSessionUI();resetRequestForm();
- if(emp.mustChangePin)setTimeout(()=>changeEmployeePin(true),250);
+function statusClass(s) {
+  return s === "approved" ? "approved" : s === "rejected" ? "rejected" : "pending";
 }
-function managerLogin(){
- const pin=$('managerPin').value.trim();if(pin!==String(managerPin)){alert('PIN Manager non corretto.');$('managerPin').value='';return;}
- currentSession={role:'manager'};setSessionUI();
-}
-function changeEmployeePin(force=false){
- const emp=sessionEmployee();if(!emp)return;
- const message=force?'Primo accesso: crea ora il tuo nuovo PIN personale (4-6 cifre).':'Inserisci il nuovo PIN personale (4-6 cifre).';
- const newPin=prompt(message,'');if(newPin===null&&force){alert('Per continuare devi impostare il PIN personale.');return changeEmployeePin(true);}if(newPin===null)return;
- if(!validPin(newPin)){alert('Il PIN deve contenere solo 4-6 cifre.');return changeEmployeePin(force);}
- const confirmPin=prompt('Ripeti il nuovo PIN:','');if(confirmPin!==newPin){alert('I PIN non coincidono.');return changeEmployeePin(force);}
- emp.pin=newPin;emp.mustChangePin=false;save();alert('PIN personale aggiornato.');
-}
-function changeManagerPin(){
- if(currentSession?.role!=='manager')return;const old=prompt('Inserisci il PIN Manager attuale:','');if(old===null)return;if(old!==String(managerPin)){alert('PIN attuale non corretto.');return;}
- const next=prompt('Nuovo PIN Manager (4-6 cifre):','');if(next===null)return;if(!validPin(next)){alert('Il PIN deve contenere solo 4-6 cifre.');return;}
- const confirmPin=prompt('Ripeti il nuovo PIN Manager:','');if(confirmPin!==next){alert('I PIN non coincidono.');return;}
- managerPin=next;save();alert('PIN Manager aggiornato.');
+function validEmployeePin(pin) { return /^\d{6}$/.test(pin); }
+function randomPin() { return String(Math.floor(100000 + Math.random() * 900000)); }
+function normalizeName(v) { return String(v || "").trim().toUpperCase().replace(/\s+/g, " "); }
+function firebaseMessage(err) {
+  const code = err?.code || "";
+  if (code.includes("wrong-password") || code.includes("invalid-credential")) return "PIN non corretto.";
+  if (code.includes("user-disabled")) return "Account disattivato. Rivolgiti al Manager.";
+  if (code.includes("too-many-requests")) return "Troppi tentativi. Riprova tra qualche minuto.";
+  if (code.includes("network-request-failed")) return "Connessione non disponibile.";
+  return err?.message?.replace(/^Firebase:\s*/i, "") || "Operazione non riuscita.";
 }
 
-function resetRequestForm(){editingRequestId=null;$('requestType').selectedIndex=0;$('dateFrom').value='';$('dateTo').value='';$('note').value='';$('yearSelect').value=String(new Date().getFullYear());$('sendBtn').textContent='Invia richiesta';$('cancelEditBtn').classList.add('hidden');}
-function cancelEdit(rerender=true){resetRequestForm();if(rerender)renderEmployeeHistory();}
-function renderEmployeeHistory(){
- const emp=sessionEmployee();if(!emp)return;
- const own=requests.filter(r=>r.employeeId===emp.id).sort((a,b)=>b.createdAt.localeCompare(a.createdAt));
- $('employeeHistory').innerHTML='<h3>Le mie richieste</h3>'+(own.length?`<div class="history-list">${own.map(r=>`<div class="history-item">
-   <div class="history-top"><div><strong>${r.type}</strong><br><span class="muted">${fmt(r.from)} - ${fmt(r.to)} · ${r.department}</span></div><span class="status-badge ${statusClass(r.status)}">${r.status}</span></div>
-   ${r.note?`<div class="muted" style="margin-top:7px">Nota: ${escapeHtml(r.note)}</div>`:''}
-   ${r.managerNote?`<div class="muted" style="margin-top:4px">Nota manager: ${escapeHtml(r.managerNote)}</div>`:''}
-   ${r.status==='IN ATTESA'?`<div class="history-actions"><button class="edit" onclick="editRequest('${r.id}')">Modifica richiesta</button></div>`:''}
- </div>`).join('')}</div>`:'<p>Nessuna richiesta inviata.</p>');
+function fillYears() {
+  ["yearSelect", "filterYear"].forEach(id => {
+    $(id).innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join("");
+  });
+  $("yearSelect").value = String(new Date().getFullYear());
+  $("filterYear").value = String(new Date().getFullYear());
 }
-function submitRequest(){
- const emp=sessionEmployee();if(!emp){alert('Sessione non valida. Effettua nuovamente l’accesso.');return;}
- const from=$('dateFrom').value,to=$('dateTo').value;
- if(!from||!to){alert('Compila le date.');return}if(to<from){alert('La data finale non può precedere quella iniziale.');return}
- if(editingRequestId){
-   const r=requests.find(x=>x.id===editingRequestId);if(!r||r.employeeId!==emp.id){alert('Richiesta non disponibile.');resetRequestForm();return}
-   if(r.status!=='IN ATTESA'){alert('La richiesta è già stata valutata e non può più essere modificata.');resetRequestForm();renderEmployeeHistory();return}
-   r.type=$('requestType').value;r.year=Number($('yearSelect').value);r.from=from;r.to=to;r.note=$('note').value.trim();r.updatedAt=new Date().toISOString();save();resetRequestForm();renderEmployeeHistory();alert('Richiesta modificata correttamente.');return;
- }
- requests.push({id:crypto.randomUUID(),employeeId:emp.id,employeeName:emp.name,department:emp.department,type:$('requestType').value,year:Number($('yearSelect').value),from,to,note:$('note').value.trim(),status:'IN ATTESA',createdAt:new Date().toISOString(),updatedAt:null,decisionAt:null,managerNote:''});
- save();resetRequestForm();renderEmployeeHistory();alert('Richiesta inviata. Stato: IN ATTESA.');
+function fillDeptFilters() {
+  const current = $("filterDept").value;
+  $("filterDept").innerHTML = '<option value="">Tutti i reparti</option>' + DEPARTMENTS.map(d => `<option>${d}</option>`).join("");
+  $("filterDept").value = current;
 }
-window.editRequest=(id)=>{const emp=sessionEmployee();if(!emp)return;const r=requests.find(x=>x.id===id&&x.employeeId===emp.id);if(!r)return;if(r.status!=='IN ATTESA'){alert('Puoi modificare solamente le richieste ancora IN ATTESA.');return}editingRequestId=id;$('requestType').value=r.type;$('yearSelect').value=String(r.year);$('dateFrom').value=r.from;$('dateTo').value=r.to;$('note').value=r.note||'';$('sendBtn').textContent='Salva modifica';$('cancelEditBtn').classList.remove('hidden');window.scrollTo({top:0,behavior:'smooth'});};
-
-function filtered(){if(currentSession?.role!=='manager')return[];return requests.filter(r=>(!$('filterDept').value||r.department===$('filterDept').value)&&(!$('filterStatus').value||r.status===$('filterStatus').value)&&Number(r.year)===Number($('filterYear').value));}
-function renderManager(){
- if(currentSession?.role!=='manager')return;
- const rows=filtered().sort((a,b)=>b.createdAt.localeCompare(a.createdAt));
- $('requestsTable').innerHTML=rows.map(r=>`<tr><td>${r.employeeName}</td><td>${r.department}</td><td>${r.type}</td><td>${fmt(r.from)} - ${fmt(r.to)}</td><td><span class="status-badge ${statusClass(r.status)}">${r.status}</span></td><td><div class="actions">${r.status==='IN ATTESA'?`<button class="ok" onclick="decide('${r.id}','APPROVATA')">Approva</button><button class="no" onclick="decide('${r.id}','RIFIUTATA')">Rifiuta</button>`:''}<button class="danger" onclick="deleteRequest('${r.id}')">Elimina</button></div></td></tr>`).join('')||'<tr><td colspan="6">Nessuna richiesta per i filtri selezionati.</td></tr>';
- const yr=Number($('filterYear').value);const all=requests.filter(r=>Number(r.year)===yr);const counts={pending:all.filter(r=>r.status==='IN ATTESA').length,approved:all.filter(r=>r.status==='APPROVATA').length,rejected:all.filter(r=>r.status==='RIFIUTATA').length,total:all.length};
- $('stats').innerHTML=`<div class="stat"><span>Totale</span><strong>${counts.total}</strong></div><div class="stat"><span>In attesa</span><strong>${counts.pending}</strong></div><div class="stat"><span>Approvate</span><strong>${counts.approved}</strong></div><div class="stat"><span>Rifiutate</span><strong>${counts.rejected}</strong></div>`;
+async function loadDirectory() {
+  try {
+    const snap = await db.collection("directory").where("active", "==", true).get();
+    directory = snap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => a.name.localeCompare(b.name));
+  } catch (e) {
+    console.error("Directory", e);
+    directory = [];
+  }
+  const select = $("loginEmployeeSelect");
+  if (!directory.length) {
+    select.innerHTML = '<option value="">Organico non ancora inizializzato</option>';
+    return;
+  }
+  select.innerHTML = '<option value="">Seleziona il tuo nominativo</option>' + directory.map(e =>
+    `<option value="${esc(e.employeeCode)}">${esc(e.name)} · ${esc(e.department)}</option>`).join("");
 }
-window.decide=(id,status)=>{if(currentSession?.role!=='manager')return;const r=requests.find(x=>x.id===id);if(!r)return;if(r.status!=='IN ATTESA'){alert('La richiesta è già stata valutata.');return}const note=prompt(status==='APPROVATA'?'Nota di conferma (facoltativa):':'Motivo/nota (facoltativa):','')||'';r.status=status;r.managerNote=note;r.decisionAt=new Date().toISOString();save();renderManager();};
-window.deleteRequest=(id)=>{if(currentSession?.role!=='manager')return;const r=requests.find(x=>x.id===id);if(!r)return;const ok=confirm(`Eliminare definitivamente la richiesta di ${r.employeeName} (${r.type}, ${fmt(r.from)} - ${fmt(r.to)})?\n\nIl dipendente potrà inserirla nuovamente in modo corretto.`);if(!ok)return;requests=requests.filter(x=>x.id!==id);save();renderManager();};
-function renderStaff(){if(currentSession?.role!=='manager')return;const depts=[...new Set(employees.map(e=>e.department))].sort();$('staffByDept').innerHTML=depts.map(d=>`<div class="dept"><h4>${d} (${employees.filter(e=>e.department===d&&e.active).length})</h4><ul>${employees.filter(e=>e.department===d&&e.active).sort((a,b)=>a.name.localeCompare(b.name)).map(e=>`<li>${e.name}<button class="mini" onclick="resetEmployeePin('${e.id}')">Reset PIN</button></li>`).join('')}</ul></div>`).join('');}
-window.resetEmployeePin=(id)=>{if(currentSession?.role!=='manager')return;const emp=employees.find(e=>e.id===id);if(!emp)return;const pin=prompt(`Nuovo PIN temporaneo per ${emp.name} (4-6 cifre):`,'');if(pin===null)return;if(!validPin(pin)){alert('PIN non valido.');return;}emp.pin=pin;emp.mustChangePin=true;save();alert(`PIN temporaneo impostato per ${emp.name}. Al prossimo accesso dovrà cambiarlo.`);};
-function addEmployee(){if(currentSession?.role!=='manager')return;const name=$('newName').value.trim().toUpperCase();const department=$('newDept').value;const pin=$('newPin').value.trim();if(!name||!validPin(pin)){alert('Inserisci nominativo e un PIN di 4-6 cifre.');return;}employees.push({id:'EMP'+Date.now(),name,department,active:true,pin,mustChangePin:true});save();fillLoginEmployees();fillDeptFilters();renderStaff();$('newName').value='';$('newPin').value='';}
 
-$('employeeTab').addEventListener('click',()=>switchLoginTab('employee'));$('managerTab').addEventListener('click',()=>switchLoginTab('manager'));
-$('employeeLoginBtn').addEventListener('click',employeeLogin);$('managerLoginBtn').addEventListener('click',managerLogin);
-$('employeePin').addEventListener('keydown',e=>{if(e.key==='Enter')employeeLogin();});$('managerPin').addEventListener('keydown',e=>{if(e.key==='Enter')managerLogin();});
-$('logoutBtn').addEventListener('click',()=>showLogin(currentSession?.role==='manager'?'manager':'employee'));
-$('changePinBtn').addEventListener('click',()=>changeEmployeePin(false));$('managerPinBtn').addEventListener('click',changeManagerPin);
-$('sendBtn').addEventListener('click',submitRequest);$('cancelEditBtn').addEventListener('click',()=>cancelEdit(true));
-['filterDept','filterStatus','filterYear'].forEach(id=>$(id).addEventListener('change',renderManager));
-$('addEmployeeBtn').addEventListener('click',()=>{if(currentSession?.role==='manager')$('employeeDialog').showModal();});$('employeeForm').addEventListener('submit',addEmployee);
+function switchLoginTab(tab) {
+  const employee = tab === "employee";
+  $("employeeTab").classList.toggle("active", employee);
+  $("managerTab").classList.toggle("active", !employee);
+  $("employeeLogin").classList.toggle("hidden", !employee);
+  $("managerLogin").classList.toggle("hidden", employee);
+}
+function clearArea() {
+  if (requestsUnsub) { requestsUnsub(); requestsUnsub = null; }
+  currentProfile = null;
+  requests = [];
+  editingRequestId = null;
+  $("employeeArea").classList.add("hidden");
+  $("managerArea").classList.add("hidden");
+  $("sessionBox").classList.add("hidden");
+}
+function showLogin(tab = "employee") {
+  clearArea();
+  $("loginArea").classList.remove("hidden");
+  $("employeePin").value = "";
+  $("managerPin").value = "";
+  switchLoginTab(tab);
+}
 
-fillYears();fillLoginEmployees();fillDeptFilters();resetRequestForm();save();showLogin('employee');
-if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
+async function employeeLogin() {
+  const code = $("loginEmployeeSelect").value;
+  const pin = $("employeePin").value.trim();
+  if (!code) return alert("Seleziona il tuo nominativo.");
+  if (!validEmployeePin(pin)) return alert("Il PIN deve contenere 6 cifre.");
+  const employee = directory.find(e => e.employeeCode === code);
+  if (!employee) return alert("Dipendente non disponibile.");
+  try {
+    await auth.signInWithEmailAndPassword(`${code.toLowerCase()}@gestione.local`, pin);
+  } catch (e) {
+    $("employeePin").value = "";
+    alert(firebaseMessage(e));
+  }
+}
+async function managerLogin() {
+  const pin = $("managerPin").value.trim();
+  if (!/^\d{6,12}$/.test(pin)) return alert("Inserisci il PIN Manager.");
+  try {
+    await auth.signInWithEmailAndPassword(MANAGER_EMAIL, pin);
+  } catch (e) {
+    $("managerPin").value = "";
+    alert(firebaseMessage(e));
+  }
+}
+async function openAuthenticatedArea() {
+  const user = auth.currentUser;
+  if (!user) return showLogin();
+  const doc = await db.collection("users").doc(user.uid).get();
+  if (!doc.exists) {
+    await auth.signOut();
+    return alert("Profilo utente non configurato.");
+  }
+  currentProfile = {uid: user.uid, ...doc.data()};
+  if (currentProfile.active !== true) {
+    await auth.signOut();
+    return alert("Account disattivato.");
+  }
+  $("loginArea").classList.add("hidden");
+  $("sessionBox").classList.remove("hidden");
+  $("sessionName").textContent = currentProfile.name || "Utente";
+  if (currentProfile.role === "manager") {
+    $("sessionRole").textContent = "Manager · Amministratore";
+    $("employeeArea").classList.add("hidden");
+    $("managerArea").classList.remove("hidden");
+    await loadStaff();
+    watchManagerRequests();
+  } else if (currentProfile.role === "employee") {
+    $("sessionRole").textContent = `Dipendente · ${currentProfile.department}`;
+    $("managerArea").classList.add("hidden");
+    $("employeeArea").classList.remove("hidden");
+    $("employeeWelcome").textContent = `Ciao ${currentProfile.name}`;
+    $("employeeIdentity").textContent = currentProfile.name;
+    $("employeeDepartment").textContent = `Reparto ${currentProfile.department}`;
+    resetRequestForm();
+    watchEmployeeRequests();
+    if (currentProfile.mustChangePin === true) setTimeout(() => changeEmployeePin(true), 300);
+  } else {
+    await auth.signOut();
+    showLogin();
+  }
+}
+
+function watchEmployeeRequests() {
+  requestsUnsub = db.collection("requests").where("userId", "==", currentProfile.uid)
+    .onSnapshot(snap => {
+      requests = snap.docs.map(d => ({id: d.id, ...d.data()}));
+      renderEmployeeHistory();
+    }, e => alert(firebaseMessage(e)));
+}
+function renderEmployeeHistory() {
+  const own = [...requests].sort((a,b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+  $("employeeHistory").innerHTML = '<h3>Le mie richieste</h3>' + (own.length ?
+    `<div class="history-list">${own.map(r => `<div class="history-item">
+      <div class="history-top"><div><strong>${esc(r.type)}</strong><br><span class="muted">${fmt(r.from)} - ${fmt(r.to)} · ${esc(r.department)}</span></div><span class="status-badge ${statusClass(r.status)}">${statusLabel(r.status)}</span></div>
+      ${r.note ? `<div class="muted" style="margin-top:7px">Nota: ${esc(r.note)}</div>` : ""}
+      ${r.managerNote ? `<div class="muted" style="margin-top:4px">Nota manager: ${esc(r.managerNote)}</div>` : ""}
+      ${r.status === "pending" ? `<div class="history-actions"><button class="edit" onclick="editRequest('${r.id}')">Modifica richiesta</button></div>` : ""}
+    </div>`).join("")}</div>` : '<p>Nessuna richiesta inviata.</p>');
+}
+function resetRequestForm() {
+  editingRequestId = null;
+  $("requestType").selectedIndex = 0;
+  $("dateFrom").value = "";
+  $("dateTo").value = "";
+  $("note").value = "";
+  $("yearSelect").value = String(new Date().getFullYear());
+  $("sendBtn").textContent = "Invia richiesta";
+  $("cancelEditBtn").classList.add("hidden");
+}
+async function submitRequest() {
+  if (currentProfile?.role !== "employee") return;
+  const from = $("dateFrom").value;
+  const to = $("dateTo").value;
+  if (!from || !to) return alert("Compila le date.");
+  if (to < from) return alert("La data finale non può precedere quella iniziale.");
+  const payload = {
+    type: $("requestType").value,
+    year: Number($("yearSelect").value),
+    from, to,
+    note: $("note").value.trim(),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  try {
+    if (editingRequestId) {
+      const r = requests.find(x => x.id === editingRequestId);
+      if (!r || r.status !== "pending") return alert("La richiesta non è più modificabile.");
+      await db.collection("requests").doc(editingRequestId).update(payload);
+      resetRequestForm();
+      alert("Richiesta modificata correttamente.");
+    } else {
+      await db.collection("requests").add({
+        ...payload,
+        userId: currentProfile.uid,
+        employeeName: currentProfile.name,
+        department: currentProfile.department,
+        status: "pending",
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        decisionAt: null,
+        managerNote: ""
+      });
+      resetRequestForm();
+      alert("Richiesta inviata. Stato: IN ATTESA.");
+    }
+  } catch (e) { alert(firebaseMessage(e)); }
+}
+window.editRequest = id => {
+  if (currentProfile?.role !== "employee") return;
+  const r = requests.find(x => x.id === id);
+  if (!r || r.status !== "pending") return alert("Puoi modificare solo richieste ancora IN ATTESA.");
+  editingRequestId = id;
+  $("requestType").value = r.type;
+  $("yearSelect").value = String(r.year);
+  $("dateFrom").value = r.from;
+  $("dateTo").value = r.to;
+  $("note").value = r.note || "";
+  $("sendBtn").textContent = "Salva modifica";
+  $("cancelEditBtn").classList.remove("hidden");
+  window.scrollTo({top: 0, behavior: "smooth"});
+};
+
+async function changeEmployeePin(force = false) {
+  if (currentProfile?.role !== "employee") return;
+  const pin = prompt(force ? "Primo accesso: crea il tuo PIN personale di 6 cifre." : "Nuovo PIN personale (6 cifre):", "");
+  if (pin === null) {
+    if (force) setTimeout(() => changeEmployeePin(true), 250);
+    return;
+  }
+  if (!validEmployeePin(pin)) return alert("Il PIN deve contenere esattamente 6 cifre."), changeEmployeePin(force);
+  const confirmPin = prompt("Ripeti il nuovo PIN:", "");
+  if (confirmPin !== pin) return alert("I PIN non coincidono."), changeEmployeePin(force);
+  try {
+    await auth.currentUser.updatePassword(pin);
+    await db.collection("users").doc(currentProfile.uid).update({mustChangePin: false});
+    currentProfile.mustChangePin = false;
+    alert("PIN personale aggiornato.");
+  } catch (e) { alert(firebaseMessage(e)); }
+}
+async function changeManagerPin() {
+  if (currentProfile?.role !== "manager") return;
+  const pin = prompt("Nuovo PIN Manager (6 cifre):", "");
+  if (pin === null) return;
+  if (!validEmployeePin(pin)) return alert("Il PIN deve contenere esattamente 6 cifre.");
+  const confirmPin = prompt("Ripeti il nuovo PIN Manager:", "");
+  if (confirmPin !== pin) return alert("I PIN non coincidono.");
+  try {
+    await auth.currentUser.updatePassword(pin);
+    alert("PIN Manager aggiornato. Da ora usa il nuovo PIN.");
+  } catch (e) { alert(firebaseMessage(e)); }
+}
+
+async function loadStaff() {
+  if (currentProfile?.role !== "manager") return;
+  try {
+    const snap = await db.collection("users").where("role", "==", "employee").get();
+    staff = snap.docs.map(d => ({uid: d.id, ...d.data()})).sort((a,b) => a.name.localeCompare(b.name));
+    renderStaff();
+  } catch (e) { alert(firebaseMessage(e)); }
+}
+function renderStaff() {
+  if (currentProfile?.role !== "manager") return;
+  $("staffByDept").innerHTML = DEPARTMENTS.map(d => {
+    const people = staff.filter(e => e.department === d);
+    const activeCount = people.filter(e => e.active).length;
+    return `<div class="dept"><h4>${d} (${activeCount}/${people.length})</h4><ul>${people.map(e => `<li class="${e.active ? "" : "inactive-row"}"><span>${esc(e.name)}${e.active ? "" : " · DISATTIVO"}</span><div class="staff-actions"><button class="mini" onclick="resetEmployeePin('${e.uid}','${esc(e.name)}')">Reset PIN</button><button class="mini ${e.active ? "danger" : "ok"}" onclick="toggleEmployee('${e.uid}',${!e.active})">${e.active ? "Disattiva" : "Attiva"}</button></div></li>`).join("") || "<li>Nessun dipendente</li>"}</ul></div>`;
+  }).join("");
+}
+
+function watchManagerRequests() {
+  requestsUnsub = db.collection("requests").onSnapshot(snap => {
+    requests = snap.docs.map(d => ({id: d.id, ...d.data()}));
+    renderManager();
+  }, e => alert(firebaseMessage(e)));
+}
+function filteredRequests() {
+  const dept = $("filterDept").value;
+  const status = $("filterStatus").value;
+  const year = Number($("filterYear").value);
+  return requests.filter(r => (!dept || r.department === dept) && (!status || r.status === status) && Number(r.year) === year);
+}
+function renderManager() {
+  if (currentProfile?.role !== "manager") return;
+  const rows = filteredRequests().sort((a,b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+  $("requestsTable").innerHTML = rows.map(r => `<tr><td>${esc(r.employeeName)}</td><td>${esc(r.department)}</td><td>${esc(r.type)}</td><td>${fmt(r.from)} - ${fmt(r.to)}</td><td><span class="status-badge ${statusClass(r.status)}">${statusLabel(r.status)}</span></td><td><div class="actions">${r.status === "pending" ? `<button class="ok" onclick="decide('${r.id}','approved')">Approva</button><button class="no" onclick="decide('${r.id}','rejected')">Rifiuta</button>` : ""}<button class="danger" onclick="deleteRequest('${r.id}')">Elimina</button></div></td></tr>`).join("") || '<tr><td colspan="6">Nessuna richiesta per i filtri selezionati.</td></tr>';
+  const yr = Number($("filterYear").value);
+  const all = requests.filter(r => Number(r.year) === yr);
+  const counts = {total: all.length, pending: all.filter(r => r.status === "pending").length, approved: all.filter(r => r.status === "approved").length, rejected: all.filter(r => r.status === "rejected").length};
+  $("stats").innerHTML = `<div class="stat"><span>Totale</span><strong>${counts.total}</strong></div><div class="stat"><span>In attesa</span><strong>${counts.pending}</strong></div><div class="stat"><span>Approvate</span><strong>${counts.approved}</strong></div><div class="stat"><span>Rifiutate</span><strong>${counts.rejected}</strong></div>`;
+}
+window.decide = async (id, status) => {
+  if (currentProfile?.role !== "manager") return;
+  const r = requests.find(x => x.id === id);
+  if (!r || r.status !== "pending") return alert("La richiesta è già stata valutata.");
+  const note = prompt(status === "approved" ? "Nota di conferma (facoltativa):" : "Motivo/nota (facoltativa):", "") || "";
+  try {
+    await db.collection("requests").doc(id).update({status, managerNote: note, decisionAt: firebase.firestore.FieldValue.serverTimestamp(), updatedAt: firebase.firestore.FieldValue.serverTimestamp()});
+  } catch (e) { alert(firebaseMessage(e)); }
+};
+window.deleteRequest = async id => {
+  if (currentProfile?.role !== "manager") return;
+  const r = requests.find(x => x.id === id);
+  if (!r) return;
+  if (!confirm(`Eliminare definitivamente la richiesta di ${r.employeeName} (${r.type}, ${fmt(r.from)} - ${fmt(r.to)})?\n\nIl dipendente potrà inserirla nuovamente in modo corretto.`)) return;
+  try { await db.collection("requests").doc(id).delete(); } catch (e) { alert(firebaseMessage(e)); }
+};
+
+async function addEmployee(evt) {
+  evt?.preventDefault?.();
+  if (currentProfile?.role !== "manager") return;
+  const name = normalizeName($("newName").value);
+  const department = $("newDept").value;
+  const pin = $("newPin").value.trim();
+  if (!name || !validEmployeePin(pin)) return alert("Inserisci nominativo e un PIN di 6 cifre.");
+  try {
+    const call = functions.httpsCallable("createEmployee");
+    await call({name, department, pin});
+    $("employeeDialog").close();
+    $("newName").value = "";
+    $("newPin").value = "";
+    await Promise.all([loadStaff(), loadDirectory()]);
+    alert(`Dipendente ${name} creato correttamente.`);
+  } catch (e) { alert(firebaseMessage(e)); }
+}
+window.resetEmployeePin = async (uid, name) => {
+  if (currentProfile?.role !== "manager") return;
+  const pin = prompt(`Nuovo PIN temporaneo di 6 cifre per ${name}:`, "");
+  if (pin === null) return;
+  if (!validEmployeePin(pin)) return alert("PIN non valido: servono esattamente 6 cifre.");
+  try {
+    await functions.httpsCallable("resetEmployeePin")({uid, pin});
+    alert(`PIN temporaneo impostato per ${name}. Al prossimo accesso dovrà cambiarlo.`);
+  } catch (e) { alert(firebaseMessage(e)); }
+};
+window.toggleEmployee = async (uid, active) => {
+  if (currentProfile?.role !== "manager") return;
+  if (!confirm(active ? "Riattivare questo dipendente?" : "Disattivare questo dipendente? Non potrà più accedere finché non verrà riattivato.")) return;
+  try {
+    await functions.httpsCallable("setEmployeeActive")({uid, active});
+    await Promise.all([loadStaff(), loadDirectory()]);
+  } catch (e) { alert(firebaseMessage(e)); }
+};
+
+async function seedInitialEmployees() {
+  if (currentProfile?.role !== "manager") return;
+  if (!confirm("Creare in Firebase i dipendenti dell'organico iniziale non ancora presenti? Verrà generato un PIN temporaneo diverso per ciascuno.")) return;
+  $("seedEmployeesBtn").disabled = true;
+  $("seedEmployeesBtn").textContent = "Importazione in corso...";
+  const existing = new Set(staff.map(e => `${normalizeName(e.name)}|${e.department}`));
+  const report = [];
+  let created = 0;
+  try {
+    for (const [rawName, department] of DEFAULT_EMPLOYEES) {
+      const name = normalizeName(rawName);
+      const key = `${name}|${department}`;
+      if (existing.has(key)) { report.push(`${name} · ${department} · già presente`); continue; }
+      const pin = randomPin();
+      try {
+        await functions.httpsCallable("createEmployee")({name, department, pin});
+        report.push(`${name} · ${department} · PIN TEMPORANEO ${pin}`);
+        created++;
+      } catch (e) {
+        report.push(`${name} · ${department} · ERRORE: ${firebaseMessage(e)}`);
+      }
+    }
+    $("importReport").value = report.join("\n");
+    $("importReportDialog").showModal();
+    await Promise.all([loadStaff(), loadDirectory()]);
+    alert(`Importazione terminata. Nuovi dipendenti creati: ${created}. Conserva il report dei PIN temporanei.`);
+  } finally {
+    $("seedEmployeesBtn").disabled = false;
+    $("seedEmployeesBtn").textContent = "Importa organico iniziale";
+  }
+}
+async function copyImportReport() {
+  try { await navigator.clipboard.writeText($("importReport").value); alert("Report copiato."); }
+  catch { $("importReport").select(); document.execCommand("copy"); alert("Report copiato."); }
+}
+
+$("employeeTab").addEventListener("click", () => switchLoginTab("employee"));
+$("managerTab").addEventListener("click", () => switchLoginTab("manager"));
+$("employeeLoginBtn").addEventListener("click", employeeLogin);
+$("managerLoginBtn").addEventListener("click", managerLogin);
+$("employeePin").addEventListener("keydown", e => { if (e.key === "Enter") employeeLogin(); });
+$("managerPin").addEventListener("keydown", e => { if (e.key === "Enter") managerLogin(); });
+$("logoutBtn").addEventListener("click", async () => { const tab = currentProfile?.role === "manager" ? "manager" : "employee"; await auth.signOut(); showLogin(tab); });
+$("changePinBtn").addEventListener("click", () => changeEmployeePin(false));
+$("managerPinBtn").addEventListener("click", changeManagerPin);
+$("sendBtn").addEventListener("click", submitRequest);
+$("cancelEditBtn").addEventListener("click", resetRequestForm);
+["filterDept", "filterStatus", "filterYear"].forEach(id => $(id).addEventListener("change", renderManager));
+$("addEmployeeBtn").addEventListener("click", () => { if (currentProfile?.role === "manager") $("employeeDialog").showModal(); });
+$("employeeForm").addEventListener("submit", addEmployee);
+$("seedEmployeesBtn").addEventListener("click", seedInitialEmployees);
+$("copyImportReportBtn").addEventListener("click", copyImportReport);
+
+fillYears();
+fillDeptFilters();
+loadDirectory();
+auth.onAuthStateChanged(async user => {
+  if (user && !currentProfile) {
+    try { await openAuthenticatedArea(); } catch (e) { console.error(e); showLogin(); }
+  } else if (!user) {
+    showLogin();
+  }
+});
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");

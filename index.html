@@ -43,7 +43,7 @@
     </div>
 
     <div id="managerLogin" class="login-panel hidden">
-      <label>PIN Manager<input id="managerPin" type="password" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="Inserisci PIN Manager"></label>
+      <label>PIN Manager<input id="managerPin" type="password" inputmode="numeric" maxlength="12" autocomplete="off" placeholder="Inserisci PIN Manager"></label>
       <button id="managerLoginBtn" class="primary full">Accedi come Manager</button>
     </div>
   </section>
@@ -79,7 +79,7 @@
   <section class="hero-card hidden" id="managerArea">
     <div class="manager-head">
       <div><span class="eyebrow">AREA MANAGER</span><h2>Dashboard Manager</h2><p>Valuta, conferma, rifiuta o elimina le richieste errate.</p></div>
-      <div class="manager-buttons"><button id="managerPinBtn" class="secondary">Cambia PIN Manager</button><button id="addEmployeeBtn" class="primary">+ Nuovo dipendente</button></div>
+      <div class="manager-buttons"><button id="managerPinBtn" class="secondary">Cambia PIN Manager</button><button id="seedEmployeesBtn" class="secondary">Importa organico iniziale</button><button id="addEmployeeBtn" class="primary">+ Nuovo dipendente</button></div>
     </div>
     <div class="filters">
       <select id="filterDept"><option value="">Tutti i reparti</option></select>
@@ -98,12 +98,23 @@
     <h3>Nuovo dipendente</h3>
     <label>Nome e cognome<input id="newName" required></label>
     <label>Reparto<select id="newDept"><option>CS</option><option>PC</option><option>GE</option><option>TLC</option><option>MAG</option><option>TV</option></select></label>
-    <label>PIN temporaneo<input id="newPin" required type="password" inputmode="numeric" minlength="4" maxlength="6" placeholder="4-6 cifre"></label>
+    <label>PIN temporaneo<input id="newPin" required type="password" inputmode="numeric" minlength="6" maxlength="6" placeholder="6 cifre"></label>
     <div class="dialog-actions"><button value="cancel" class="secondary">Annulla</button><button class="primary" id="saveEmployee" value="default">Salva</button></div>
   </form>
 </dialog>
 
+<dialog id="importReportDialog">
+  <h3>Report importazione organico</h3>
+  <p class="muted">Conserva i PIN temporanei e comunicali individualmente ai dipendenti. Al primo accesso saranno obbligati a cambiarli.</p>
+  <textarea id="importReport" rows="18" readonly></textarea>
+  <div class="dialog-actions"><button id="copyImportReportBtn" type="button" class="secondary">Copia report</button><button type="button" class="primary" onclick="document.getElementById('importReportDialog').close()">Chiudi</button></div>
+</dialog>
+
 <footer>MediaWorld · Gestione Preferenze Personale · PV Rescaldina</footer>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
