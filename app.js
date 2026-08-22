@@ -11,6 +11,9 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 const functions = firebase.app().functions("europe-west8");
+const messaging = firebase.messaging();
+
+const VAPID_KEY = "BDyZSsYT_T5uXfKeQRtGK06bliELXLyfg0n1QgtAJ4KtYdQlW2Cck5iFxNre3GHM89dBG1FkE9JzSKe4PLr23kE";
 
 const MANAGER_EMAIL = "manager.rescaldina@gestione.local";
 const DEPARTMENTS = ["CS", "PC", "GE", "TLC", "MAG", "TV"];
@@ -59,6 +62,41 @@ function firebaseMessage(err) {
   if (code.includes("too-many-requests")) return "Troppi tentativi. Riprova tra qualche minuto.";
   if (code.includes("network-request-failed")) return "Connessione non disponibile.";
   return err?.message?.replace(/^Firebase:\s*/i, "") || "Operazione non riuscita.";
+}
+async function registerPushNotifications() {
+  try {
+    if (!("Notification" in window)) {
+      console.log("Notifiche non supportate su questo dispositivo.");
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+
+    if (permission !== "granted") {
+      console.log("Permesso notifiche non concesso.");
+      return;
+    }
+
+    const registration = await navigator.serviceWorker.ready;
+
+    const token = await messaging.getToken({
+      vapidKey: VAPID_KEY,
+      serviceWorkerRegistration: registration
+    });
+
+    if (!token || !currentProfile?.uid) return;
+
+    await db.collection("users").doc(currentProfile.uid).update({
+      fcmTokens: firebase.firestore.FieldValue.arrayUnion(token),
+      notificationsEnabled: true,
+      notificationsUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    console.log("Dispositivo registrato per le notifiche.");
+
+  } catch (e) {
+    console.error("Registrazione notifiche:", e);
+  }
 }
 
 function fillYears() {
