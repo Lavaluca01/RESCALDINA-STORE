@@ -285,17 +285,47 @@ async function changeManagerPin() {
 }
 
 async function loadStaff() {
-  if (currentProfile?.role !== "manager") return;
-  try {
-    const snap = await db.collection("users").where("role", "==", "employee").get();
-    staff = snap.docs.map(d => ({uid: d.id, ...d.data()})).sort((a,b) => a.name.localeCompare(b.name));
-    renderStaff();
-  } catch (e) { alert(firebaseMessage(e)); }
+    if (currentProfile?.role !== "manager") return;
+
+    try {
+        const snap = await db.collection("users")
+            .where("role", "==", "employee")
+            .get();
+
+        staff = snap.docs
+            .map(d => ({uid:d.id, ...d.data()}))
+            .sort((a,b) => a.name.localeCompare(b.name));
+
+        renderStaff();
+      function renderInactiveStaff() {
+
+    if (currentProfile?.role !== "manager") return;
+
+    const box = $("inactiveStaff");
+
+    const inactive = staff.filter(e => e.active === false);
+
+    box.innerHTML = inactive.map(e => `
+        <div class="dept">
+            <b>${esc(e.name)}</b>
+            <span>Disattivato</span>
+            <button onclick="toggleEmployee('${e.uid}', true)">
+                Riattiva
+            </button>
+        </div>
+    `).join("");
+
+}
+        renderInactiveStaff();
+
+    } catch (e) {
+        alert(firebaseMessage(e));
+    }
 }
 function renderStaff() {
   if (currentProfile?.role !== "manager") return;
   $("staffByDept").innerHTML = DEPARTMENTS.map(d => {
-    const people = staff.filter(e => e.department === d);
+    const people = staff.filter(e => e.department === d && e.active !== false);
     const activeCount = people.filter(e => e.active).length;
     return `<div class="dept"><h4>${d} (${activeCount}/${people.length})</h4><ul>${people.map(e => `<li class="${e.active ? "" : "inactive-row"}"><span>${esc(e.name)}${e.active ? "" : " · DISATTIVO"}</span><div class="staff-actions"><button class="mini" onclick="resetEmployeePin('${e.uid}','${esc(e.name)}')">Reset PIN</button><button class="mini ${e.active ? "danger" : "ok"}" onclick="toggleEmployee('${e.uid}',${!e.active})">${e.active ? "Disattiva" : "Attiva"}</button></div></li>`).join("") || "<li>Nessun dipendente</li>"}</ul></div>`;
   }).join("");
