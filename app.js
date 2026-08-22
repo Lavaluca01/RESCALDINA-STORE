@@ -298,12 +298,10 @@ async function loadStaff() {
   .sort((a,b)=>a.name.localeCompare(b.name));
 
     renderStaff();
-    renderInactiveStaff();
 
   } catch (e) {
     alert(firebaseMessage(e));
   }
-}
 }
 function renderStaff() {
   if (currentProfile?.role !== "manager") return;
