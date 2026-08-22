@@ -1,5 +1,5 @@
 const firebaseConfig = {
-  apiKey: "AIzaSyCZ3vlyu3S0uU4Ts1k1Cyyy4G4xkk0AF24",
+  apiKey: "AIzaSyD8vzrP5O3aPa1DetSzmWYMWDjV-VpdgHc",
   authDomain: "gestione-personale-rescaldina.firebaseapp.com",
   projectId: "gestione-personale-rescaldina",
   storageBucket: "gestione-personale-rescaldina.firebasestorage.app",
