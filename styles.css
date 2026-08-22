@@ -33,3 +33,41 @@
   padding: 0 22px;
   white-space: nowrap;
 }
+/* Dashboard Manager - tabella richieste ottimizzata smartphone */
+@media (max-width: 760px) {
+
+  .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table-wrap table {
+    min-width: 760px;
+  }
+
+  .table-wrap th:last-child,
+  .table-wrap td:last-child {
+    position: sticky;
+    right: 0;
+    background: #ffffff;
+    z-index: 2;
+    box-shadow: -4px 0 8px rgba(0,0,0,0.06);
+  }
+
+  .table-wrap th:last-child {
+    background: #fafafa;
+    z-index: 3;
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 5px;
+  }
+
+  .actions button {
+    padding: 7px 8px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+}
