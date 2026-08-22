@@ -464,7 +464,7 @@ $("addEmployeeBtn").addEventListener("click", () => {
 
   $("newName").value = "";
   $("newDept").selectedIndex = 0;
-  $("newPin").value = randomPin();
+  
 
   $("employeeDialog").showModal();
 });
