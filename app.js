@@ -285,42 +285,24 @@ async function changeManagerPin() {
 }
 
 async function loadStaff() {
-    if (currentProfile?.role !== "manager") return;
+  if (currentProfile?.role !== "manager") return;
 
-    try {
-        const snap = await db.collection("users")
-            .where("role", "==", "employee")
-            .get();
+  try {
+    const snap = await db.collection("users")
+      .where("role", "==", "employee")
+      .get();
 
-        staff = snap.docs
-            .map(d => ({uid:d.id, ...d.data()}))
-            .sort((a,b) => a.name.localeCompare(b.name));
+    staff = snap.docs
+      .map(d => ({uid:d.id, ...d.data()}))
+      .sort((a,b) => a.name.localeCompare(b.name));
 
-        renderStaff();
-      function renderInactiveStaff() {
+    renderStaff();
+    renderInactiveStaff();
 
-    if (currentProfile?.role !== "manager") return;
-
-    const box = $("inactiveStaff");
-
-    const inactive = staff.filter(e => e.active === false);
-
-    box.innerHTML = inactive.map(e => `
-        <div class="dept">
-            <b>${esc(e.name)}</b>
-            <span>Disattivato</span>
-            <button onclick="toggleEmployee('${e.uid}', true)">
-                Riattiva
-            </button>
-        </div>
-    `).join("");
-
+  } catch (e) {
+    alert(firebaseMessage(e));
+  }
 }
-        renderInactiveStaff();
-
-    } catch (e) {
-        alert(firebaseMessage(e));
-    }
 }
 function renderStaff() {
   if (currentProfile?.role !== "manager") return;
