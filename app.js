@@ -30,6 +30,7 @@ const $ = id => document.getElementById(id);
 const years = Array.from({length: 25}, (_, i) => new Date().getFullYear() + i);
 let directory = [];
 let staff = [];
+let inactiveStaff = [];
 let requests = [];
 let currentProfile = null;
 let editingRequestId = null;
