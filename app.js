@@ -352,7 +352,12 @@ async function addEmployee(evt) {
     $("newName").value = "";
     $("newPin").value = "";
     await Promise.all([loadStaff(), loadDirectory()]);
-    alert(`Dipendente ${name} creato correttamente.`);
+    alert(
+  `Dipendente ${name} creato correttamente.\n\n` +
+  `PIN TEMPORANEO: ${pin}\n\n` +
+  `Comunicalo al dipendente.\n` +
+  `Al primo accesso sarà obbligato a cambiarlo.`
+);
   } catch (e) { alert(firebaseMessage(e)); }
 }
 window.resetEmployeePin = async (uid, name) => {
