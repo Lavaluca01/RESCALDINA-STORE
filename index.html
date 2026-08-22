@@ -86,7 +86,19 @@
       <select id="filterStatus"><option value="">Tutti gli stati</option><option>IN ATTESA</option><option>APPROVATA</option><option>RIFIUTATA</option></select>
       <select id="filterYear"></select>
     </div>
-    <div class="stats" id="stats"></div>
+    <<div class="filters export-filters">
+  <label>Dal
+    <input type="date" id="exportDateFrom">
+  </label>
+
+  <label>Al
+    <input type="date" id="exportDateTo">
+  </label>
+
+  <button type="button" id="exportExcelBtn" class="secondary">
+    Esporta Excel
+  </button>
+<div class="stats" id="stats"></div>
     <div class="table-wrap"><table><thead><tr><th>Dipendente</th><th>Rep.</th><th>Tipo</th><th>Periodo</th><th>Stato</th><th>Azioni</th></tr></thead><tbody id="requestsTable"></tbody></table></div>
     <h3>Organico per reparto</h3>
     <div id="staffByDept" class="dept-grid"></div>
@@ -115,6 +127,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
+      <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
