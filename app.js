@@ -292,9 +292,10 @@ async function loadStaff() {
       .where("role", "==", "employee")
       .get();
 
-    staff = snap.docs
-      .map(d => ({uid:d.id, ...d.data()}))
-      .sort((a,b) => a.name.localeCompare(b.name));
+   staff = snap.docs
+  .map(d => ({uid:d.id,...d.data()}))
+  .filter(e => e.active !== false)
+  .sort((a,b)=>a.name.localeCompare(b.name));
 
     renderStaff();
     renderInactiveStaff();
