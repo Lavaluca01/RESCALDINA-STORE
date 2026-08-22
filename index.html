@@ -109,10 +109,32 @@
 <dialog id="employeeDialog">
   <form method="dialog" id="employeeForm">
     <h3>Nuovo dipendente</h3>
-    <label>Nome e cognome<input id="newName" required></label>
-    <label>Reparto<select id="newDept"><option>CS</option><option>PC</option><option>GE</option><option>TLC</option><option>MAG</option><option>TV</option></select></label>
-    <label>PIN temporaneo<input id="newPin" required type="password" inputmode="numeric" minlength="6" maxlength="6" placeholder="6 cifre"></label>
-    <div class="dialog-actions"><button value="cancel" class="secondary">Annulla</button><button class="primary" id="saveEmployee" value="default">Salva</button></div>
+
+    <label>
+      Nome e cognome
+      <input id="newName" required>
+    </label>
+
+    <label>
+      Reparto
+      <select id="newDept">
+        <option>CS</option>
+        <option>PC</option>
+        <option>GE</option>
+        <option>TLC</option>
+        <option>MAG</option>
+        <option>TV</option>
+      </select>
+    </label>
+
+    <p class="muted">
+      Il PIN temporaneo verrà generato automaticamente.
+    </p>
+
+    <div class="dialog-actions">
+      <button value="cancel" class="secondary">Annulla</button>
+      <button class="primary" id="saveEmployee" value="default">Crea dipendente</button>
+    </div>
   </form>
 </dialog>
 
