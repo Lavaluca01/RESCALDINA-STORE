@@ -357,13 +357,24 @@ async function addEmployee(evt) {
 }
 window.resetEmployeePin = async (uid, name) => {
   if (currentProfile?.role !== "manager") return;
-  const pin = prompt(`Nuovo PIN temporaneo di 6 cifre per ${name}:`, "");
-  if (pin === null) return;
-  if (!validEmployeePin(pin)) return alert("PIN non valido: servono esattamente 6 cifre.");
+
+  if (!confirm(`Generare un nuovo PIN temporaneo per ${name}?`)) return;
+
+  const pin = randomPin();
+
   try {
     await functions.httpsCallable("resetEmployeePin")({uid, pin});
-    alert(`PIN temporaneo impostato per ${name}. Al prossimo accesso dovrà cambiarlo.`);
-  } catch (e) { alert(firebaseMessage(e)); }
+
+    alert(
+      `PIN temporaneo generato per ${name}:\n\n` +
+      `${pin}\n\n` +
+      `Comunicalo al dipendente.\n` +
+      `Al primo accesso sarà obbligato a cambiarlo.`
+    );
+
+  } catch (e) {
+    alert(firebaseMessage(e));
+  }
 };
 window.toggleEmployee = async (uid, active) => {
   if (currentProfile?.role !== "manager") return;
