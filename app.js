@@ -504,6 +504,7 @@ $("managerLoginBtn").addEventListener("click", managerLogin);
 $("employeePin").addEventListener("keydown", e => { if (e.key === "Enter") employeeLogin(); });
 $("managerPin").addEventListener("keydown", e => { if (e.key === "Enter") managerLogin(); });
 $("logoutBtn").addEventListener("click", async () => { const tab = currentProfile?.role === "manager" ? "manager" : "employee"; await auth.signOut(); showLogin(tab); });
+$("enableNotificationsBtn").addEventListener("click", registerPushNotifications);
 $("changePinBtn").addEventListener("click", () => changeEmployeePin(false));
 $("managerPinBtn").addEventListener("click", changeManagerPin);
 $("sendBtn").addEventListener("click", submitRequest);
