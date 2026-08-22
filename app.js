@@ -438,7 +438,15 @@ $("managerPinBtn").addEventListener("click", changeManagerPin);
 $("sendBtn").addEventListener("click", submitRequest);
 $("cancelEditBtn").addEventListener("click", resetRequestForm);
 ["filterDept", "filterStatus", "filterYear"].forEach(id => $(id).addEventListener("change", renderManager));
-$("addEmployeeBtn").addEventListener("click", () => { if (currentProfile?.role === "manager") $("employeeDialog").showModal(); });
+$("addEmployeeBtn").addEventListener("click", () => {
+  if (currentProfile?.role !== "manager") return;
+
+  $("newName").value = "";
+  $("newDept").selectedIndex = 0;
+  $("newPin").value = randomPin();
+
+  $("employeeDialog").showModal();
+});
 $("employeeForm").addEventListener("submit", addEmployee);
 $("seedEmployeesBtn").addEventListener("click", seedInitialEmployees);
 $("copyImportReportBtn").addEventListener("click", copyImportReport);
