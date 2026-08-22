@@ -438,3 +438,89 @@ auth.onAuthStateChanged(async user => {
   }
 });
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
+
+// =====================================================
+// ESPORTAZIONE EXCEL RICHIESTE - AREA MANAGER
+// =====================================================
+
+async function exportRequestsToExcel() {
+  try {
+    if (!currentProfile || currentProfile.role !== "manager") {
+      alert("Funzione disponibile solo per il Manager.");
+      return;
+    }
+
+    const dateFrom = $("exportDateFrom").value;
+    const dateTo = $("exportDateTo").value;
+
+    if (!dateFrom || !dateTo) {
+      alert("Seleziona sia la data DAL che la data AL.");
+      return;
+    }
+
+    if (dateFrom > dateTo) {
+      alert("La data iniziale non può essere successiva alla data finale.");
+      return;
+    }
+
+    // Filtra le richieste in base al periodo selezionato
+    const filteredRequests = requests.filter(r => {
+      const start = r.dateFrom || r.from || r.startDate || "";
+      const end = r.dateTo || r.to || r.endDate || start;
+
+      if (!start) return false;
+
+      // Include anche richieste che si sovrappongono al periodo scelto
+      return start <= dateTo && end >= dateFrom;
+    });
+
+    if (filteredRequests.length === 0) {
+      alert("Nessuna richiesta trovata nel periodo selezionato.");
+      return;
+    }
+
+    const excelData = filteredRequests.map(r => ({
+      "Dipendente": r.employeeName || r.name || "",
+      "Reparto": r.department || r.dept || "",
+      "Tipo richiesta": r.type || r.requestType || "",
+      "Dal": r.dateFrom || r.from || r.startDate || "",
+      "Al": r.dateTo || r.to || r.endDate || "",
+      "Stato": statusLabel(r.status),
+      "Note": r.note || r.notes || ""
+    }));
+
+    // Crea foglio Excel
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+
+    // Larghezza colonne
+    worksheet["!cols"] = [
+      { wch: 28 },
+      { wch: 12 },
+      { wch: 24 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 16 },
+      { wch: 45 }
+    ];
+
+    // Crea cartella Excel
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Richieste");
+
+    const filename =
+      `Richieste_Personale_${dateFrom}_${dateTo}.xlsx`;
+
+    XLSX.writeFile(workbook, filename);
+
+  } catch (error) {
+    console.error("Errore esportazione Excel:", error);
+    alert("Errore durante la creazione del file Excel.");
+  }
+}
+
+// Collega il pulsante Esporta Excel
+const exportExcelBtn = $("exportExcelBtn");
+
+if (exportExcelBtn) {
+  exportExcelBtn.addEventListener("click", exportRequestsToExcel);
+}
