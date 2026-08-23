@@ -1,3 +1,17 @@
+importScripts("https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js");
+importScripts("https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js");
+
+firebase.initializeApp({
+  apiKey: "AIzaSyD8vzrP5O3aPa1DetSzmWYMWDjV-VpdgHc",
+  authDomain: "gestione-personale-rescaldina.firebaseapp.com",
+  projectId: "gestione-personale-rescaldina",
+  storageBucket: "gestione-personale-rescaldina.firebasestorage.app",
+  messagingSenderId: "144918771825",
+  appId: "1:144918771825:web:31145a82da3ea2144743d0"
+});
+
+const messaging = firebase.messaging();
+
 const CACHE='preference-rescaldina-firebase-v5';
 const ASSETS=['./','./index.html','./styles.css','./app.js','./manifest.json','./logo-mediaworld.jpg','./icon-192.png','./icon-512.png'];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)))});
