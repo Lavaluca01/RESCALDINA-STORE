@@ -228,7 +228,17 @@ function renderEmployeeHistory() {
       <div class="history-top"><div><strong>${esc(r.type)}</strong><br><span class="muted">${fmt(r.from)} - ${fmt(r.to)} · ${esc(r.department)}</span></div><span class="status-badge ${statusClass(r.status)}">${statusLabel(r.status)}</span></div>
       ${r.note ? `<div class="muted" style="margin-top:7px">Nota: ${esc(r.note)}</div>` : ""}
       ${r.managerNote ? `<div class="muted" style="margin-top:4px">Nota manager: ${esc(r.managerNote)}</div>` : ""}
-      ${r.status === "pending" ? `<div class="history-actions"><button class="edit" onclick="editRequest('${r.id}')">Modifica richiesta</button></div>` : ""}
+      ${
+  r.status === "pending"
+    ? `<div class="history-actions"><button class="edit" onclick="editRequest('${r.id}')">Modifica richiesta</button></div>`
+    : r.status === "approved"
+      ? `<div class="history-actions"><button class="edit" onclick="requestChange('${r.id}')">Richiedi modifica</button></div>`
+      : r.status === "change_requested"
+        ? `<div class="history-actions"><span class="muted">Richiesta modifica inviata al Manager</span></div>`
+        : r.status === "unlocked"
+          ? `<div class="history-actions"><button class="edit" onclick="editRequest('${r.id}')">Modifica richiesta</button></div>`
+          : ""
+}
     </div>`).join("")}</div>` : '<p>Nessuna richiesta inviata.</p>');
 }
 function resetRequestForm() {
@@ -277,10 +287,35 @@ async function submitRequest() {
     }
   } catch (e) { alert(firebaseMessage(e)); }
 }
+window.requestChange = async id => {
+  if (currentProfile?.role !== "employee") return;
+
+  const r = requests.find(x => x.id === id);
+  if (!r || r.status !== "approved") {
+    return alert("Puoi richiedere la modifica solo di una richiesta già approvata.");
+  }
+
+  const reason = prompt("Indica brevemente perché vuoi modificare la richiesta:", "") || "";
+  if (!reason.trim()) return;
+
+  try {
+    await db.collection("requests").doc(id).update({
+      status: "change_requested",
+      changeRequestedReason: reason.trim(),
+      changeRequestedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    alert("Richiesta di modifica inviata al Manager.");
+  } catch (e) {
+    alert(firebaseMessage(e));
+  }
+};
+
 window.editRequest = id => {
   if (currentProfile?.role !== "employee") return;
   const r = requests.find(x => x.id === id);
-  if (!r || r.status !== "pending") return alert("Puoi modificare solo richieste ancora IN ATTESA.");
+  if (!r || !["pending","unlocked"].includes(r.status)) return alert("La richiesta non è modificabile.");
   editingRequestId = id;
   $("requestType").value = r.type;
   $("yearSelect").value = String(r.year);
@@ -365,7 +400,13 @@ function filteredRequests() {
 function renderManager() {
   if (currentProfile?.role !== "manager") return;
   const rows = filteredRequests().sort((a,b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
-  $("requestsTable").innerHTML = rows.map(r => `<tr><td>${esc(r.employeeName)}</td><td>${esc(r.department)}</td><td>${esc(r.type)}</td><td>${fmt(r.from)} - ${fmt(r.to)}</td><td><span class="status-badge ${statusClass(r.status)}">${statusLabel(r.status)}</span></td><td><div class="actions">${r.status === "pending" ? `<button class="ok" onclick="decide('${r.id}','approved')">Approva</button><button class="no" onclick="decide('${r.id}','rejected')">Rifiuta</button>` : ""}<button class="danger" onclick="deleteRequest('${r.id}')">Elimina</button></div></td></tr>`).join("") || '<tr><td colspan="6">Nessuna richiesta per i filtri selezionati.</td></tr>';
+  $("requestsTable").innerHTML = rows.map(r => `<tr><td>${esc(r.employeeName)}</td><td>${esc(r.department)}</td><td>${esc(r.type)}</td><td>${fmt(r.from)} - ${fmt(r.to)}</td><td><span class="status-badge ${statusClass(r.status)}">${statusLabel(r.status)}</span></td><td><div class="actions">${
+  r.status === "pending"
+    ? `<button class="ok" onclick="decide('${r.id}','approved')">Approva</button><button class="no" onclick="decide('${r.id}','rejected')">Rifiuta</button>`
+    : r.status === "change_requested"
+      ? `<button class="ok" onclick="unlockRequest('${r.id}')">Autorizza modifica</button>`
+      : ""
+}<button class="danger" onclick="deleteRequest('${r.id}')">Elimina</button></div></td></tr>`).join("") || '<tr><td colspan="6">Nessuna richiesta per i filtri selezionati.</td></tr>';
   const yr = Number($("filterYear").value);
   const all = requests.filter(r => Number(r.year) === yr);
   const counts = {total: all.length, pending: all.filter(r => r.status === "pending").length, approved: all.filter(r => r.status === "approved").length, rejected: all.filter(r => r.status === "rejected").length};
@@ -380,6 +421,31 @@ window.decide = async (id, status) => {
     await db.collection("requests").doc(id).update({status, managerNote: note, decisionAt: firebase.firestore.FieldValue.serverTimestamp(), updatedAt: firebase.firestore.FieldValue.serverTimestamp()});
   } catch (e) { alert(firebaseMessage(e)); }
 };
+window.unlockRequest = async id => {
+  if (currentProfile?.role !== "manager") return;
+
+  const r = requests.find(x => x.id === id);
+  if (!r || r.status !== "change_requested") {
+    return alert("Questa richiesta non è in attesa di autorizzazione alla modifica.");
+  }
+
+  if (!confirm(`Autorizzare ${r.employeeName} a modificare questa richiesta?`)) return;
+
+  try {
+    await db.collection("requests").doc(id).update({
+      status: "unlocked",
+      unlockedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      unlockedBy: currentProfile.uid || "",
+      previousApprovalAt: r.decisionAt || null,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    alert("Modifica autorizzata. Il dipendente potrà ora cambiare la richiesta.");
+  } catch (e) {
+    alert(firebaseMessage(e));
+  }
+};
+
 window.deleteRequest = async id => {
   if (currentProfile?.role !== "manager") return;
   const r = requests.find(x => x.id === id);
