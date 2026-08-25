@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function profile() { return get(/databases/$(database)/documents/users/$(request.auth.uid)); }
+    function isActive() { return signedIn() && profile().data.active == true; }
+    function isManager() { return isActive() && profile().data.role == "manager"; }
+
+    match /directory/{employeeCode} {
+      allow read: if true;
+      allow write: if isManager();
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn() && (request.auth.uid == userId || isManager());
+      allow create, delete: if isManager();
+      allow update: if isManager() || (
+        signedIn() && request.auth.uid == userId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mustChangePin'])
+      );
+    }
+
+    match /requests/{requestId} {
+      allow read: if isActive() && (resource.data.userId == request.auth.uid || isManager());
+      allow create: if isActive() && (
+        isManager() || (
+          request.resource.data.userId == request.auth.uid &&
+          request.resource.data.employeeName == profile().data.name &&
+          request.resource.data.department == profile().data.department &&
+          request.resource.data.status == "pending"
+        )
+      );
+      allow update: if isActive() && (
+        isManager() || (
+          resource.data.userId == request.auth.uid &&
+          request.resource.data.userId == resource.data.userId &&
+          request.resource.data.employeeName == resource.data.employeeName &&
+          request.resource.data.department == resource.data.department &&
+          (
+            (
+              resource.data.status == "pending" &&
+              request.resource.data.status == "pending"
+            ) ||
+            (
+              resource.data.status == "approved" &&
+              request.resource.data.status == "change_requested" &&
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                "status",
+                "changeRequestedReason",
+                "changeRequestedAt",
+                "updatedAt"
+              ])
+            ) ||
+            (
+              resource.data.status == "unlocked" &&
+              request.resource.data.status == "pending"
+            )
+          )
+        )
+      );
+      allow delete: if isManager();
+    }
+
+    match /settings/{document=**} { allow read, write: if isManager(); }
+    match /{document=**} { allow read, write: if false; }
+  }
+}
